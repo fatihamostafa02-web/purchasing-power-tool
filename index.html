@@ -50,7 +50,27 @@
   .globe-card canvas { pointer-events: auto !important; display: block; border-radius: var(--radius); }
   #globe-container { width: 100%; height: 100%; min-height: 420px; }
   .globe-hint { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(255,255,255,0.4); pointer-events: none; }
-  .search-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .search-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: end; }
+  .swap-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    color: var(--text-muted);
+    transition: all 0.15s;
+    flex-shrink: 0;
+    margin-bottom: 1px;
+  }
+  .swap-btn:hover {
+    background: var(--teal);
+    color: #fff;
+    border-color: var(--teal);
+    transform: rotate(180deg);
+  }
   .search-box { position: relative; }
   .search-box label { display: block; font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
   .search-box input { font-family: var(--font); width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px; color: var(--text); outline: none; transition: border-color 0.15s; }
@@ -90,6 +110,73 @@
   .status-row { font-size: 11px; color: var(--text-faint); display: flex; align-items: center; gap: 6px; }
   .status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--teal); flex-shrink: 0; }
   .status-dot.fallback { background: var(--coral); }
+
+  /* Story card */
+  .story-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .story-step {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .story-step-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .story-step-num {
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.8px;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  .story-step-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .story-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .story-divider-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .story-divider-arrow {
+    font-size: 13px;
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+  .story-gap {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .story-gap strong { color: var(--text); font-weight: 500; }
+  .ppp-pill {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-top: 4px;
+  }
   @media (max-width: 900px) {
     .app { padding: 16px; gap: 14px; }
     .main { grid-template-columns: 1fr; }
@@ -107,13 +194,13 @@
   <div class="amount-row">
     <span class="amount-label">I have</span>
     <div class="amount-wrap">
-      <span class="currency-symbol">$</span>
-      <input type="number" id="amount" value="1000" min="1" step="100" />
-      <span class="currency-tag">USD</span>
+      <span class="currency-symbol" id="from-symbol" style="color:var(--text-faint);">—</span>
+      <input type="number" id="amount" value="1000" min="1" step="100" placeholder="1000" style="color:var(--text);" />
+      <span class="currency-tag" id="from-currency" style="color:var(--text-faint);">Select a country</span>
     </div>
     <div class="selection-pills">
-      <div class="pill pill-empty" id="pill-from"><span class="pill-dot"></span><span id="pill-from-text">Select "from"</span></div>
-      <div class="pill pill-empty" id="pill-to"><span class="pill-dot"></span><span id="pill-to-text">Select "to"</span></div>
+      <div class="pill pill-empty" id="pill-from"><span class="pill-dot"></span><span id="pill-from-text">From</span></div>
+      <div class="pill pill-empty" id="pill-to"><span class="pill-dot"></span><span id="pill-to-text">To</span></div>
     </div>
   </div>
   <div class="main">
@@ -128,6 +215,7 @@
           <input type="text" id="search-from" placeholder="e.g. Spain" autocomplete="off" />
           <div class="suggestions" id="sugg-from"></div>
         </div>
+        <button class="swap-btn" id="swap-btn" title="Swap countries">⇄</button>
         <div class="search-box to">
           <label>To country</label>
           <input type="text" id="search-to" placeholder="e.g. Bangladesh" autocomplete="off" />
@@ -232,6 +320,14 @@ const categories = [
 
 const pppCache = {};
 const fxCache = {};
+
+function smartFmt(val, symbol) {
+  if (val === 0) return symbol + '0';
+  if (val >= 100) return symbol + Math.round(val).toLocaleString();
+  if (val >= 10) return symbol + val.toFixed(1);
+  if (val >= 1) return symbol + val.toFixed(2);
+  return symbol + val.toFixed(3);
+}
 let sel1 = null, sel2 = null;
 let globeInstance = null;
 let countriesGeoJson = null;
@@ -242,27 +338,64 @@ function getIso2(topoId) {
 
 async function fetchPPP(iso2) {
   if (pppCache[iso2] !== undefined) return pppCache[iso2];
-  try {
-    const r = await fetch(`https://api.worldbank.org/v2/country/${iso2}/indicator/PA.NUS.PPP?format=json&mrv=1`);
-    const j = await r.json();
-    const v = j[1]?.[0]?.value;
-    if (v && v > 0) { pppCache[iso2] = v; return v; }
-  } catch(e) {}
+  const wbUrl = `https://api.worldbank.org/v2/country/${iso2}/indicator/PA.NUS.PPP?format=json&mrv=1`;
+  const endpoints = [
+    wbUrl,
+    `https://corsproxy.io/?${encodeURIComponent(wbUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(wbUrl)}`
+  ];
+  for (const url of endpoints) {
+    try {
+      const r = await fetch(url);
+      const j = await r.json();
+      const v = j[1]?.[0]?.value;
+      if (v && v > 0) { pppCache[iso2] = v; return v; }
+    } catch(e) {}
+  }
   const fb = hardcodedPPP[iso2];
   if (fb) { pppCache[iso2] = -fb; return fb; }
   return null;
+}
+
+const fallbackFX = {
+  USD:{USD:1,GBP:0.79,EUR:0.92,BDT:110,JPY:149,MXN:17.2,NGN:1450,INR:83,BRL:5.0,
+       AUD:1.53,CAD:1.36,CNY:7.25,KRW:1330,SAR:3.75,TRY:32.0,PLN:3.95,ARS:890,
+       CLP:950,COP:3900,EGP:48,MAD:10.0,KES:130,THB:35,VND:24500,PHP:56,
+       IDR:15600,PKR:278,RUB:90,UAH:38,SEK:10.5,NOK:10.6,DKK:6.9,CHF:0.90,
+       NZD:1.63,AED:3.67,QAR:3.64,HUF:360,CZK:23,RON:4.6,HRK:7.0,ZAR:18.5},
+};
+
+function getFallbackRate(from, to) {
+  if (from === to) return 1;
+  const fromRates = fallbackFX[from] || fallbackFX['USD'];
+  const toRates = fallbackFX[to] || fallbackFX['USD'];
+  if (from === 'USD' && fallbackFX.USD[to]) return fallbackFX.USD[to];
+  if (to === 'USD' && fallbackFX.USD[from]) return 1 / fallbackFX.USD[from];
+  if (fallbackFX.USD[from] && fallbackFX.USD[to]) return fallbackFX.USD[to] / fallbackFX.USD[from];
+  return 1;
 }
 
 async function fetchFX(from, to) {
   if (from === to) return 1;
   const k = from+'_'+to;
   if (fxCache[k]) return fxCache[k];
+  const apis = [
+    `https://api.exchangerate.host/convert?from=${from}&to=${to}&amount=1`,
+    `https://open.er-api.com/v6/latest/${from}`,
+  ];
   try {
-    const r = await fetch(`https://api.exchangerate.host/convert?from=${from}&to=${to}&amount=1`);
+    const r = await fetch(apis[0]);
     const j = await r.json();
     if (j.result > 0) { fxCache[k] = j.result; return j.result; }
   } catch(e) {}
-  return null;
+  try {
+    const r = await fetch(apis[1]);
+    const j = await r.json();
+    if (j.rates && j.rates[to] > 0) { fxCache[k] = j.rates[to]; return j.rates[to]; }
+  } catch(e) {}
+  const fb = getFallbackRate(from, to);
+  fxCache[k] = fb;
+  return fb;
 }
 
 function updatePills() {
@@ -312,26 +445,58 @@ async function renderResults() {
   const fxAmt = amt * fxUsed;
   const pppAmt = amt * pppRatio;
   const pppMore = pppRatio >= 1;
-  const pppPct = Math.abs(Math.round((1 - pppRatio) * 100));
-  const badgeClass = pppMore ? 'ppp-positive' : 'ppp-negative';
-  const badgeText = pppMore ? `+${pppPct}% more buying power` : `${pppPct}% less buying power`;
+  // Correct percentage math:
+  // pppRatio > 1 means TO country is cheaper (more buying power)
+  // pppRatio < 1 means TO country is more expensive (less buying power)
+  // "X% cheaper" = (1 - 1/pppRatio) * 100 — always between 0-100%
+  // "X% more expensive" = (pppRatio - 1) * 100 — correct for values above 100%
+  // "X times further" used when ratio > 2 to avoid confusing large %
 
-  let html = `<div class="summary-grid">
-    <div class="summary-card">
-      <div class="label">Exchange rate</div>
-      <div class="big-num">${sel2.symbol}${Math.round(fxAmt).toLocaleString()}</div>
-      <div class="sub">${sel2.currency} — what your bank shows</div>
+  const badgeClass = pppMore ? 'ppp-positive' : 'ppp-negative';
+
+  let badgeText, gapDesc;
+  if (pppMore) {
+    // TO country is cheaper — your money goes further
+    const xTimes = pppRatio.toFixed(1);
+    const savingPct = Math.round((1 - 1 / pppRatio) * 100);
+    if (pppRatio >= 2) {
+      badgeText = `${xTimes}× more buying power`;
+      gapDesc = `That ${smartFmt(fxAmt, sel2.symbol)} goes <strong>${xTimes}× further</strong> than it would at home — because ${sel2.name} is <strong>${savingPct}% cheaper</strong> than ${sel1.name} in real terms.`;
+    } else {
+      badgeText = `+${Math.round((pppRatio - 1) * 100)}% more buying power`;
+      gapDesc = `That ${smartFmt(fxAmt, sel2.symbol)} goes <strong>further</strong> than it looks — because ${sel2.name} is <strong>${savingPct}% cheaper</strong> than ${sel1.name} in real terms.`;
+    }
+  } else {
+    // TO country is more expensive — your money goes less far
+    const costPct = Math.round((1 - pppRatio) * 100);
+    badgeText = `${costPct}% less buying power`;
+    gapDesc = `But that ${smartFmt(fxAmt, sel2.symbol)} goes <strong>less far</strong> than it looks — because ${sel2.name} is <strong>${costPct}% more expensive</strong> than ${sel1.name} in real terms.`;
+  }
+
+  let html = `<div class="story-card">
+    <div class="story-step">
+      <div class="story-step-label">Step 1 — Exchange rate</div>
+      <div class="story-step-num">${smartFmt(amt, sel1.symbol)} ${sel1.currency} → ${smartFmt(fxAmt, sel2.symbol)} ${sel2.currency}</div>
+      <div class="story-step-sub">This is what your bank gives you.${fxRate ? '' : ' <span style="color:#F97316;">(estimated rate)</span>'}</div>
     </div>
-    <div class="summary-card">
-      <div class="label">Purchasing power</div>
-      <div class="big-num">$${Math.round(pppAmt).toLocaleString()}</div>
-      <div class="sub">USD equivalent in ${sel2.name}</div>
-      <span class="ppp-badge ${badgeClass}">${badgeText}</span>
+    <div class="story-divider">
+      <div class="story-divider-line"></div>
+      <div class="story-divider-arrow">then PPP adjusts it</div>
+      <div class="story-divider-line"></div>
+    </div>
+    <div class="story-step">
+      <div class="story-step-label">Step 2 — Purchasing power reality</div>
+      <div class="story-step-num">${smartFmt(fxAmt, sel2.symbol)} ${sel2.currency}</div>
+      <div class="story-gap">${gapDesc}</div>
+      <div style="font-size:13px; color:var(--text-muted); margin-top:6px; padding: 8px 12px; background: var(--bg); border-radius:8px; border-left: 3px solid ${pppMore ? 'var(--teal)' : 'var(--coral)'};">
+        Your ${smartFmt(amt, sel1.symbol)} in ${sel2.name} buys what <strong style="color:var(--text);">${smartFmt(amt * pppRatio, sel1.symbol)} ${sel1.currency}</strong> <span style="color:var(--text-faint);">(≈ ${smartFmt(amt * pppRatio * fxUsed, sel2.symbol)} ${sel2.currency})</span> would buy you back in ${sel1.name}.
+      </div>
+      <span class="ppp-pill ${badgeClass}">${badgeText} in ${sel2.name}</span>
     </div>
   </div>`;
 
   if (usedFallback) {
-    html += `<div class="status-row"><div class="status-dot fallback"></div><span>Estimated PPP data (World Bank unavailable)</span></div>`;
+    html += `<div class="status-row"><div class="status-dot fallback"></div><span>PPP estimates used — World Bank API unavailable in this environment</span></div>`;
   }
 
   categories.forEach(cat => {
@@ -359,6 +524,25 @@ async function renderResults() {
   document.getElementById('results-col').innerHTML = html;
 }
 
+function updateAmountCurrency() {
+  const sym = document.getElementById('from-symbol');
+  const tag = document.getElementById('from-currency');
+  const input = document.getElementById('amount');
+  if (!sym || !tag) return;
+  if (sel1) {
+    sym.textContent = sel1.symbol;
+    sym.style.color = 'var(--text-muted)';
+    tag.textContent = sel1.currency;
+    tag.style.color = 'var(--text-muted)';
+    if (input) input.style.color = 'var(--text)';
+  } else {
+    sym.textContent = '—';
+    sym.style.color = 'var(--text-faint)';
+    tag.textContent = 'Select a country';
+    tag.style.color = 'var(--text-faint)';
+  }
+}
+
 function syncInputs() {
   const fromInput = document.getElementById('search-from');
   const toInput = document.getElementById('search-to');
@@ -376,6 +560,7 @@ function handleCountryClick(iso2) {
     sel2 = meta;
   }
   syncInputs();
+  updateAmountCurrency();
   updatePills();
   refreshGlobe();
   if (sel1 && sel2) renderResults();
@@ -385,6 +570,7 @@ function selectCountry(meta, isFrom) {
   if (isFrom) { sel1 = meta; if (sel1 && sel2 && sel1.iso2 === sel2.iso2) sel2 = null; }
   else { sel2 = meta; if (sel1 && sel2 && sel1.iso2 === sel2.iso2) sel1 = null; }
   syncInputs();
+  updateAmountCurrency();
   updatePills();
   refreshGlobe();
   if (sel1 && sel2) renderResults();
@@ -420,9 +606,21 @@ function setupSearch(inputId, suggId, isFrom) {
   document.addEventListener('click', e => { if (!input.contains(e.target) && !sugg.contains(e.target)) sugg.innerHTML = ''; });
 }
 
+document.getElementById('swap-btn').addEventListener('click', () => {
+  const tmp = sel1;
+  sel1 = sel2;
+  sel2 = tmp;
+  syncInputs();
+  updateAmountCurrency();
+  updatePills();
+  refreshGlobe();
+  if (sel1 && sel2) renderResults();
+});
+
 setupSearch('search-from', 'sugg-from', true);
-setupSearch('search-to', 'sugg-to', false);
 document.getElementById('amount').addEventListener('input', () => { if (sel1 && sel2) renderResults(); });
+setupSearch('search-to', 'sugg-to', false);
+
 
 async function initGlobe() {
   const container = document.getElementById('globe-container');
